@@ -53,7 +53,7 @@ def planeVanillaChord(y):
 
 
 def calculateProfileDragCoefficient(c_l, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8):
-    c_d = c_d_0 + c_d_1*(c_l - c_l_0) + c_d_2*(c_l-c_l_0)**2 + c_d_8*(c_l-c_l_0)**8
+    c_d = c_d_0 + c_d_1 * (c_l - c_l_0) + c_d_2 * ((c_l-c_l_0)**2) + c_d_8 * ((c_l-c_l_0)**8)
     return c_d
 
 def calculateCoeffDrag(CDA0, S, profDragCoeff, C_L, AR, e):
@@ -62,12 +62,6 @@ def calculateCoeffDrag(CDA0, S, profDragCoeff, C_L, AR, e):
     t3 = float(C_L**2) / (PI * AR * e)
     return (t1 + t2 + t3)
     
-
-# def calculateWingWeight(tip_chord, root_chord, span, rho, g):
-#     # TODO: figure out why this answer is weird?
-#     upper = 0.6 * (root_chord - tip_chord) * (-0.5 * (span / 2.0)) + 0.6 * tip_chord * (span / 2.0)
-#     res = 2*rho*g*upper
-#     return res
 
 def calculateWingWeight(tip_chord, root_chord, span, rho, g, tau):
     delta_c = root_chord - tip_chord
@@ -126,6 +120,23 @@ def calculate_Maximum_Load_Factor_Given_DeltaBMax(W_fuse, E, tau, epsilon, lambd
     num = deltaBMaxRatio * E * tau * (tau**2 + epsilon**2) * S_ref
     den = 0.018 * (W_fuse + W_pay) * (1 + lambda_)**3 * (1 + 2*lambda_) * aspect_ratio**3
     return num / den
+
+
+def calculateMaxVelocity(T_max, C_d, rho_air):
+    """
+    Tmax = D
+    Solves for the velocity at maximum thrust.
+    """
+    v_max = ((2 * T_max) / (C_d * rho_air)) ** 0.5
+    return v_max
+
+
+def calculateLoadFactorGivenVelocity(velocity, radius, g):
+    """
+    Rearranged eqn (20) to solve for N
+    """
+    term1 = (velocity**4) / (g**2 * radius**2) + 1
+    return term1**0.5
 
 
 def calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, g, R_turn, S_ref, C_l, rho_air=1.225):
@@ -190,22 +201,32 @@ def main():
     bending_constrained_N = calculate_Maximum_Load_Factor_Given_DeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, \
                                                                           S_REF, 0.1, 0)
 
-    print "Bending constrained N: ", bending_constrained_N
+    print "Bending constrained Load Factor: ", bending_constrained_N
 
 
     # calculate revolution time
-    min_constrained_rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
+    min_Nconstrained_rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
                                 0.1, 0.2, B, TAU, C_L=0.8, R_turn=12.5, N=bending_constrained_N, \
                                 W_wing=WEIGHT_WING)
 
-    print "Min. Rev. Time Constrained by N: ", min_constrained_rev_time
+    print "Min. Rev. Time Constrained by N: ", min_Nconstrained_rev_time
 
-    rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
-                                0.1, 0.2, B, TAU, C_L=0.8, R_turn=12.5, N=None, \
-                                W_wing=WEIGHT_WING)
 
-    print "Rev Time: ", rev_time
+    v_max = calculateMaxVelocity(T_MAX, C_D, RHO_AIR)
+    print "Vmax: ", v_max
 
+    N_max_given_vmax = calculateLoadFactorGivenVelocity(v_max, 12.5, G)
+    print "Max Load Factor Given Vmax: ", N_max_given_vmax
+
+    min_Vconstrained_rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
+                                0.1, 0.2, B, TAU, C_L=0.8, R_turn=12.5, N=N_max_given_vmax, W_wing=WEIGHT_WING)
+ 
+    print "Min. Rev. Time Constrained by Tmax: ", min_Vconstrained_rev_time
+    # rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
+    #                             0.1, 0.2, B, TAU, C_L=0.8, R_turn=12.5, N=None, \
+    #                             W_wing=WEIGHT_WING)
+
+    # print "Rev Time: ", rev_time
 
 
 
