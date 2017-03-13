@@ -8,6 +8,7 @@ G = 9.81 # m/s^2
 print "*** PLANE VANILLA PARAMS ***"
 B = 0.76*2 # m
 RHO_FOAM = 32.0 # kg / m^3
+RHO_AIR = 1.225
 E_FOAM = 19.3 * (10**6) # Pa
 TIP_CHORD = 0.10 # m
 ROOT_CHORD = 0.20 # m
@@ -105,7 +106,8 @@ def calculateDeltaBRatio(W_fuse, W_pay, E, tau, epsilon, lambda_, aspect_ratio, 
     return 0.018 * part1 * part2 * part3
 
 
-def calculatePayloadWeightUpperBoundGivenDeltaBMax(W_fuse, E, tau, epsilon, lambda_, aspect_ratio, S_ref, deltaBMaxRatio, N=1):
+def calculatePayloadWeightUpperBoundGivenDeltaBMax(W_fuse, E, tau, epsilon, lambda_, aspect_ratio, \
+                                                   S_ref, deltaBMaxRatio, N=1):
     """
     Given a delta/b maximum ratio, determine the maximum value that the W_pay can have.
     """
@@ -126,17 +128,18 @@ def calculate_Maximum_Load_Factor_Given_DeltaBMax(W_fuse, E, tau, epsilon, lambd
     return num / den
 
 
-def calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, rho, g, R_turn, S_ref, C_l):
+def calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, g, R_turn, S_ref, C_l, rho_air=1.225):
     """
     Calculats the load factor N during a banked turn of radius R_turn.
     """
-    first = 1 - ((W_fuse + W_pay + W_wing) / (0.5 * rho * g * R_turn * S_ref * C_l)) ** 2 
+    first = 1 - ((W_fuse + W_pay + W_wing) / (0.5 * rho_air * g * R_turn * S_ref * C_l)) ** 2 
     return (first ** (-0.5))
 
 
 
-def calculateRevolutionTime(W_fuse, rho, g, S_ref, AR, CDA0, c_d, T_MAX, \
-                            tip_chord, root_chord, span, tau, C_L=0.8, R_turn=12.5, N=None, W_wing=None):
+def calculateRevolutionTime(W_fuse, rho_foam, g, S_ref, AR, CDA0, c_d, T_MAX, \
+                            tip_chord, root_chord, span, tau, C_L=0.8, R_turn=12.5, \
+                            N=None, W_wing=None, rho_air=1.225):
     """
     Assumptions made for bending constrained trev:
     CL = 0.8
@@ -145,9 +148,9 @@ def calculateRevolutionTime(W_fuse, rho, g, S_ref, AR, CDA0, c_d, T_MAX, \
     """
 
     # calculate the wing weight so that we can get 
-    if W_wing = None:
+    if W_wing == None:
         print "[REV TIME] No wing weight specified, calculating..."
-        W_wing = calculateWingWeight(tip_chord, root_chord, span, rho, g, tau)
+        W_wing = calculateWingWeight(tip_chord, root_chord, span, rho_foam, g, tau)
 
 
     # now get Wpay
@@ -157,7 +160,7 @@ def calculateRevolutionTime(W_fuse, rho, g, S_ref, AR, CDA0, c_d, T_MAX, \
     # calculate N using eqn (22) if it hasn't been specified
     if N==None:
         print "[REV TIME] No load factor specified, calculating..."
-        N = calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, rho, g, R_turn, S_ref, C_L)
+        N = calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, g, R_turn, S_ref, C_L)
 
     # now calculate T_rev^2 using eqn (19) and (20)
     t_rev_squared = float(4 * PI**2 * R_turn) / (g * (N**2 - 1)**0.5)
@@ -167,29 +170,46 @@ def calculateRevolutionTime(W_fuse, rho, g, S_ref, AR, CDA0, c_d, T_MAX, \
 
 
 
+def main():
+
+    # Note: "make the assumption that c_l = C_L"
+    c_d = calculateProfileDragCoefficient(C_L, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8)
+    print "c_d: ", c_d 
+
+    C_D = calculateCoeffDrag(CDA0, S_REF, c_d, C_L, AR, e)
+    print "C_D: ", C_D
+
+    W_pay_calc = calculatePayloadWeight(AR, S_REF, CDA0, C_L, c_d, T_MAX, WEIGHT_FUSE, WEIGHT_WING, e)
+    print "Payload weight: ", W_pay_calc, "N"
+    sigma_b_ratio = calculateDeltaBRatio(WEIGHT_FUSE, W_pay_calc, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, S_REF)
+    print "Sigma B Ratio: ", sigma_b_ratio
+
+    bending_constrained_wpay = calculatePayloadWeightUpperBoundGivenDeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, 0.228, 0.1)
+    print "Bending constrained Wpay: ", bending_constrained_wpay
+
+    bending_constrained_N = calculate_Maximum_Load_Factor_Given_DeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, \
+                                                                          S_REF, 0.1, 0)
+
+    print "Bending constrained N: ", bending_constrained_N
 
 
-# Note: "make the assumption that c_l = C_L"
-c_d = calculateProfileDragCoefficient(C_L, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8)
-print "c_d: ", c_d 
-W_pay_calc = calculatePayloadWeight(AR, S_REF, CDA0, C_L, c_d, T_MAX, WEIGHT_FUSE, WEIGHT_WING, e)
-print "Payload weight: ", W_pay_calc, "N"
-sigma_b_ratio = calculateDeltaBRatio(WEIGHT_FUSE, W_pay_calc, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, S_REF)
-print "Sigma B Ratio: ", sigma_b_ratio
+    # calculate revolution time
+    min_constrained_rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
+                                0.1, 0.2, B, TAU, C_L=0.8, R_turn=12.5, N=bending_constrained_N, \
+                                W_wing=WEIGHT_WING)
 
-bending_constrained_wpay = calculatePayloadWeightUpperBoundGivenDeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, 0.228, 0.1)
-print "Bending constrained Wpay: ", bending_constrained_wpay
+    print "Min. Rev. Time Constrained by N: ", min_constrained_rev_time
 
-bending_constrained_N = calculate_Maximum_Load_Factor_Given_DeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, \
-                                                                      S_REF, 0.1, 0)
+    rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
+                                0.1, 0.2, B, TAU, C_L=0.8, R_turn=12.5, N=None, \
+                                W_wing=WEIGHT_WING)
 
-print "Bending constrained N: ", bending_constrained_N
-
-
-# calculate revolution time
-rev_time = calculateRevolutionTime(WEIGHT_FUSE, RHO_FOAM, G, S_REF, AR, CDA0, c_d, T_MAX, \
-                            0.1, 0.2, span, tau, C_L=0.8, R_turn=12.5, N=bending_constrained_N, W_wing=WEIGHT_WING)
+    print "Rev Time: ", rev_time
 
 
 
 
+if __name__ == '__main__':
+
+    main()
+    
