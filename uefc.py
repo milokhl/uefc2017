@@ -493,10 +493,10 @@ def plotResults(AR, S):
     #c = ('#ff0000', '#ffff00', '#0000FF', '0.6', 'c', 'm')
     #contour_filled = plt.contourf(X, Y, Z, colors=c)
     contour_filled = plt.contour(X, Y, Z)
-    plt.colorbar(contour)
-    plt.title('Revolution Time vs. AR and S_ref')
+    plt.colorbar(contour, label="Rev. Time (sec)")
+    plt.title('Revolution Time vs. Aspect-Ratio and Reference-Area')
     plt.xlabel('Aspect Ratio')
-    plt.ylabel('S_REF')
+    plt.ylabel('Reference Area (m^2)')
     plt.show()
 
 
