@@ -153,9 +153,9 @@ def calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, g, R_turn, S_ref, C_l, rho
     Calculats the load factor N during a banked turn of radius R_turn.
     """
     first = 1 - ((W_fuse + W_pay + W_wing) / (0.5 * rho_air * g * R_turn * S_ref * C_l)) ** 2 
-    if first < 0:
-        print "Error: trying to raise negative number to a fractional power. Returning a load factor of 1.01"
-        return 1.01
+    # if first < 0:
+    #     print "Error: trying to raise negative number to a fractional power. Returning a load factor of 1.01"
+    #     return 1.01
     return (first ** (-0.5))
 
 
@@ -163,9 +163,9 @@ def calculateBankedVelocityGivenLoadFactor(G, R, load_factor):
     """
     use eqn (20)
     """
-    if load_factor < 1:
-        print "Error: load factor of %f is less than 1. Using 1.01." % load_factor
-        load_factor = 1.01
+    # if load_factor < 1:
+    #     print "Error: load factor of %f is less than 1. Using 1.01." % load_factor
+    #     load_factor = 1.01
     v = (G * R * (load_factor**2 - 1)**0.5) ** 0.5
     return v
 
@@ -249,16 +249,16 @@ def planeVanillaAnalysis():
 
 
 
-def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1):
+def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=False):
     
-    print "\n *** OPTIMIZATION *** \n "
-    print "S_REF: %f  AR: %f  CL: %f" % (S_REF, AR, C_L)
-    print "*** Derived Parameters: *** "
+    if verbose:
+        print "\n *** OPTIMIZATION *** \n "
+
+
     # B and C can be determined by S_REF and AR
     B = (float(S_REF) * AR) ** 0.5
     C = (float(S_REF) / AR) ** 0.5
-    print "B: %f  C: %f" % (B, C)
-
+    
     TIP_CHORD = float(2 * C) / 3
     ROOT_CHORD = float(4 * C) / 3  
 
@@ -273,11 +273,13 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1):
     # Calculate the maximum velocity given T_max
     V_MAX_THRUST = calculateMaxVelocity(T_MAX, C_D, RHO_AIR, S_REF)
 
-    print "Calculated Wing Weight: ", WING_WEIGHT
-    print "c_d: ", c_d 
-    print "C_D: ", C_D
-    print "TIP_CHORD: %f  ROOT_CHORD: %f" % (TIP_CHORD, ROOT_CHORD)
-    print "V_max due to thrust constraint: ", V_MAX_THRUST
+    if verbose:
+        print "Calculated Wing Weight: ", WING_WEIGHT
+        print "c_d: ", c_d 
+        print "C_D: ", C_D
+        print "B: %f  C: %f" % (B, C)
+        print "TIP_CHORD: %f  ROOT_CHORD: %f" % (TIP_CHORD, ROOT_CHORD)
+        print "V_max due to thrust constraint: ", V_MAX_THRUST
 
     # calculate lift coefficient using maximum velocity constrained by thrust
     #C_L = calculateCoeffLift(WEIGHT_FUSE, WING_WEIGHT, 0, RHO_AIR, V_MAX_THRUST)
@@ -289,7 +291,7 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1):
 
     #V_MAX_BENDING = calculateBankedVelocityGivenLoadFactor(G, 12.5, bending_constrained_N)
 
-    print "Bending Constrained Load Factor: ", N_MAX_BENDING
+    
     #print "Bending Constrained Velocity: ", V_MAX_BENDING
 
     # N can be at most N_MAX_BENDING
@@ -299,21 +301,28 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1):
     N_IS_BENDING_CONSTRAINED = False
     if N >= N_MAX_BENDING:
         N_IS_BENDING_CONSTRAINED = True
-        print "Load factor of %f for AR:%f and SREF:%f exceeds the maximum load factor contrained by bending." % (N, AR, S_REF)
+        if verbose:
+            print "Load factor of %f for AR:%f and SREF:%f exceeds the maximum load factor contrained by bending." % (N, AR, S_REF)
         N = N_MAX_BENDING
 
     V = calculateBankedVelocityGivenLoadFactor(G, 12.5, N)
     V_IS_THRUST_CONTRAINED = False
     if V > V_MAX_THRUST:
         V_IS_THRUST_CONTRAINED = True
-        print "Velocity of %f for AR:%f and SREF:%f exceeds the maximum velocity at full thrust." % (V, AR, S_REF)
+        if verbose:
+            print "Velocity of %f for AR:%f and SREF:%f exceeds the maximum velocity at full thrust." % (V, AR, S_REF)
         V = V_MAX_THRUST
 
     rev_time = 2 * PI * 12.5 / V
 
-    print "Load factor: ", N
-    print "Velocity: ", V
-    print "Rev. Time: ", rev_time
+    if verbose:
+        print "Bending Constrained Load Factor: ", N_MAX_BENDING
+        print "Load factor: ", N
+        print "Velocity: ", V
+        print "Rev. Time: ", rev_time
+
+    # this is always printed
+    print "S_REF: %f  AR: %f  CL: %f  Time: %f" % (S_REF, AR, C_L, rev_time)
 
     return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED
 
@@ -418,39 +427,45 @@ def plotResults(AR, S):
     loadFactorIsBendingConstrained = None
     velocityIsThrustConstrained = None
 
-    xlist = np.linspace(1.0, 15.0, 20) # aspect ratios
-    ylist = np.linspace(0.005, 0.3, 80) # S refs
+    xlist = np.linspace(1.0, 12.0, 48) # aspect ratios
+    ylist = np.linspace(0.005, 0.5, 150) # S refs
+    C_L_List = np.linspace(0.4, 1.2, 15)
     X, Y = np.meshgrid(xlist, ylist)
     Z = np.zeros(shape=(len(ylist), len(xlist)))
 
     #print type(xlist)
     for x in range(len(xlist)):
         for y in range(len(ylist)):
-            #print "indices:", x, y
+            for c in range(len(C_L_List)):
 
-            minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
-                V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
-                 V_IS_THRUST_CONTRAINED = calculateMinRevTimeOptimization(xlist[x], ylist[y], 0.65, MAX_DELTA_B=0.1)
+                try:
 
-            if minimumRevTime < optimalRevTime:
-                optimalRevTime = minimumRevTime
-                optimalS_REF = ylist[y]
-                optimalAR = xlist[x]
-                optimalCL = 0.65
+                    minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
+                        V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
+                         V_IS_THRUST_CONTRAINED = calculateMinRevTimeOptimization(xlist[x], ylist[y], C_L_List[c], MAX_DELTA_B=0.1)
 
-                loadFactorAtOptimal = N
-                velocityAtOptimal = V
-                wingWeightAtOptimal = WING_WEIGHT
-                spanAtOptimal = B
-                averageChordAtOptimal = C
-                rootChordAtOptimal = ROOT_CHORD
-                tipChordAtOptimal = TIP_CHORD
-                maxVelocityAtThrust = V_MAX_THRUST
-                bendingConstrainedLoadFactor = N_MAX_BENDING
-                loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
-                velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
+                    if minimumRevTime < optimalRevTime:
+                        optimalRevTime = minimumRevTime
+                        optimalS_REF = ylist[y]
+                        optimalAR = xlist[x]
+                        optimalCL = C_L_List[c]
 
-            Z[y][x] = minimumRevTime
+                        loadFactorAtOptimal = N
+                        velocityAtOptimal = V
+                        wingWeightAtOptimal = WING_WEIGHT
+                        spanAtOptimal = B
+                        averageChordAtOptimal = C
+                        rootChordAtOptimal = ROOT_CHORD
+                        tipChordAtOptimal = TIP_CHORD
+                        maxVelocityAtThrust = V_MAX_THRUST
+                        bendingConstrainedLoadFactor = N_MAX_BENDING
+                        loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
+                        velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
+
+                    Z[y][x] = minimumRevTime
+
+                except:
+                    Z[y][x] = float('nan')
 
 
     print "\n *** FINAL RESULTS ***"
@@ -479,7 +494,7 @@ def plotResults(AR, S):
     #contour_filled = plt.contourf(X, Y, Z, colors=c)
     contour_filled = plt.contour(X, Y, Z)
     plt.colorbar(contour)
-    plt.title('Filled Contours Plot')
+    plt.title('Revolution Time vs. AR and S_ref')
     plt.xlabel('Aspect Ratio')
     plt.ylabel('S_REF')
     plt.show()
