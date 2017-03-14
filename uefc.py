@@ -295,12 +295,16 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1):
     # V can be at most V_MAX_THRUST
     N = calculateBankedLoadFactorN(WEIGHT_FUSE, WING_WEIGHT, 0, G, 12.5, S_REF, C_L, rho_air=1.225)
 
-    if N > N_MAX_BENDING:
+    N_IS_BENDING_CONSTRAINED = False
+    if N >= N_MAX_BENDING:
+        N_IS_BENDING_CONSTRAINED = True
         print "Load factor of %f for AR:%f and SREF:%f exceeds the maximum load factor contrained by bending." % (N, AR, S_REF)
         N = N_MAX_BENDING
 
     V = calculateBankedVelocityGivenLoadFactor(G, 12.5, N)
+    V_IS_THRUST_CONTRAINED = False
     if V > V_MAX_THRUST:
+        V_IS_THRUST_CONTRAINED = True
         print "Velocity of %f for AR:%f and SREF:%f exceeds the maximum velocity at full thrust." % (V, AR, S_REF)
         V = V_MAX_THRUST
 
@@ -310,7 +314,20 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1):
     print "Velocity: ", V
     print "Rev. Time: ", rev_time
 
-    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, N_MAX_BENDING
+    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED
+
+
+def testCalculateMinRevTimeOptimization():
+    AR = 10.33
+    S = 0.228
+    C_L = 0.8
+    rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, \
+    N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED = calculateMinRevTimeOptimization(AR, S, C_L)
+
+    print "[TEST] Rev. Time: ", rev_time
+    print "[TEST] Velocity: ", V
+    print "[TEST] TIP_CHORD: ", TIP_CHORD
+    print "[TEST] ROOT_CHORD: ", ROOT_CHORD
 
 
 def optimizeRevTime():
@@ -323,13 +340,25 @@ def optimizeRevTime():
     optimalS_REF = None
     optimalAR = None
     optimalCL = None
+    loadFactorAtOptimal = None
+    velocityAtOptimal = None
+    wingWeightAtOptimal = None
+    spanAtOptimal = None
+    averageChordAtOptimal = None
+    rootChordAtOptimal = None
+    tipChordAtOptimal = None
+    maxVelocityAtThrust = None
+    bendingConstrainedLoadFactor = None
+    loadFactorIsBendingConstrained = None
+    velocityIsThrustConstrained = None
 
     for aspect_ratio in aspectRatios:
         for area in areas:
             for C_L in C_Ls:
 
                 minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
-                V_MAX_THRUST, N_MAX_BENDING = calculateMinRevTimeOptimization(aspect_ratio, area, C_L, MAX_DELTA_B=0.1)
+                V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
+                 V_IS_THRUST_CONTRAINED= calculateMinRevTimeOptimization(aspect_ratio, area, C_L, MAX_DELTA_B=0.1)
 
                 if minimumRevTime < optimalRevTime:
                     optimalRevTime = minimumRevTime
@@ -346,6 +375,8 @@ def optimizeRevTime():
                     tipChordAtOptimal = TIP_CHORD
                     maxVelocityAtThrust = V_MAX_THRUST
                     bendingConstrainedLoadFactor = N_MAX_BENDING
+                    loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
+                    velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
 
     print "\n *** FINAL RESULTS ***"
     print "Optimal Rev. Time: ", optimalRevTime, "sec"
@@ -363,10 +394,12 @@ def optimizeRevTime():
     print "Tip Chord at Opt:", tipChordAtOptimal
     print "Velocity at Max Thrust:", maxVelocityAtThrust
     print "Bending Constrained Load Factor:", bendingConstrainedLoadFactor
+    print "Load Factor is Bending Constrained? : ", loadFactorIsBendingConstrained
+    print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
 
 if __name__ == '__main__':
     #planeVanillaAnalysis()
 
     optimizeRevTime()
-    
+    #testCalculateMinRevTimeOptimization()
