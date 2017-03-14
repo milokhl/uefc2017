@@ -1,6 +1,7 @@
 #!/usr/bin/env
 
-#
+import numpy as np
+import matplotlib.pyplot as plt
 
 # DEFINE CONSTANTS #
 PI = 3.14159
@@ -354,7 +355,8 @@ def optimizeRevTime():
 
     for aspect_ratio in aspectRatios:
         for area in areas:
-            for C_L in C_Ls:
+            for C_L in [0.65]:
+            #for C_L in C_Ls:
 
                 minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
                 V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
@@ -398,8 +400,95 @@ def optimizeRevTime():
     print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
 
+def plotResults(AR, S):
+
+    optimalRevTime = 1000
+    optimalS_REF = None
+    optimalAR = None
+    optimalCL = None
+    loadFactorAtOptimal = None
+    velocityAtOptimal = None
+    wingWeightAtOptimal = None
+    spanAtOptimal = None
+    averageChordAtOptimal = None
+    rootChordAtOptimal = None
+    tipChordAtOptimal = None
+    maxVelocityAtThrust = None
+    bendingConstrainedLoadFactor = None
+    loadFactorIsBendingConstrained = None
+    velocityIsThrustConstrained = None
+
+    xlist = np.linspace(1.0, 15.0, 20) # aspect ratios
+    ylist = np.linspace(0.005, 0.3, 80) # S refs
+    X, Y = np.meshgrid(xlist, ylist)
+    Z = np.zeros(shape=(len(ylist), len(xlist)))
+
+    #print type(xlist)
+    for x in range(len(xlist)):
+        for y in range(len(ylist)):
+            #print "indices:", x, y
+
+            minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
+                V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
+                 V_IS_THRUST_CONTRAINED = calculateMinRevTimeOptimization(xlist[x], ylist[y], 0.65, MAX_DELTA_B=0.1)
+
+            if minimumRevTime < optimalRevTime:
+                optimalRevTime = minimumRevTime
+                optimalS_REF = ylist[y]
+                optimalAR = xlist[x]
+                optimalCL = 0.65
+
+                loadFactorAtOptimal = N
+                velocityAtOptimal = V
+                wingWeightAtOptimal = WING_WEIGHT
+                spanAtOptimal = B
+                averageChordAtOptimal = C
+                rootChordAtOptimal = ROOT_CHORD
+                tipChordAtOptimal = TIP_CHORD
+                maxVelocityAtThrust = V_MAX_THRUST
+                bendingConstrainedLoadFactor = N_MAX_BENDING
+                loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
+                velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
+
+            Z[y][x] = minimumRevTime
+
+
+    print "\n *** FINAL RESULTS ***"
+    print "Optimal Rev. Time: ", optimalRevTime, "sec"
+    print "Optimal S_ref: ", optimalS_REF, "m^2"
+    print "Optimal AR: ", optimalAR,
+    print "Optimal CL: ", optimalCL
+    print ""
+    print "Derived Params at Optimal:"
+    print "Load Factor at Optimal: ", loadFactorAtOptimal
+    print "Velocity at Optimal: ", velocityAtOptimal
+    print "Wing Weight at Optimal: ", wingWeightAtOptimal
+    print "Span at Optimal: ", spanAtOptimal
+    print "Avg. Chord at Optimal: ", averageChordAtOptimal
+    print "Root Chord at Opt:", rootChordAtOptimal
+    print "Tip Chord at Opt:", tipChordAtOptimal
+    print "Velocity at Max Thrust:", maxVelocityAtThrust
+    print "Bending Constrained Load Factor:", bendingConstrainedLoadFactor
+    print "Load Factor is Bending Constrained? : ", loadFactorIsBendingConstrained
+    print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
+
+    plt.figure()
+    contour = plt.contourf(X, Y, Z)
+    #plt.clabel(contour, colors = 'k', fmt = '%2.1f', fontsize=12)
+    #c = ('#ff0000', '#ffff00', '#0000FF', '0.6', 'c', 'm')
+    #contour_filled = plt.contourf(X, Y, Z, colors=c)
+    contour_filled = plt.contour(X, Y, Z)
+    plt.colorbar(contour)
+    plt.title('Filled Contours Plot')
+    plt.xlabel('Aspect Ratio')
+    plt.ylabel('S_REF')
+    plt.show()
+
+
 if __name__ == '__main__':
     #planeVanillaAnalysis()
 
-    optimizeRevTime()
+    #optimizeRevTime()
     #testCalculateMinRevTimeOptimization()
+
+    plotResults(None, None)
