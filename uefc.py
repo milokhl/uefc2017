@@ -324,7 +324,7 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=Fal
     # this is always printed
     print "S_REF: %f  AR: %f  CL: %f  Time: %f" % (S_REF, AR, C_L, rev_time)
 
-    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED
+    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED, C_D
 
 
 def testCalculateMinRevTimeOptimization():
@@ -409,7 +409,7 @@ def optimizeRevTime():
     print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
 
-def plotResults(AR, S):
+def plotResults(AR, S, MAX_DELTA_B):
 
     optimalRevTime = 1000
     optimalS_REF = None
@@ -442,7 +442,7 @@ def plotResults(AR, S):
 
                     minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
                         V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
-                         V_IS_THRUST_CONTRAINED = calculateMinRevTimeOptimization(xlist[x], ylist[y], C_L_List[c], MAX_DELTA_B=0.1)
+                         V_IS_THRUST_CONTRAINED, DRAG_COEFF_AT_OPTIMAL = calculateMinRevTimeOptimization(xlist[x], ylist[y], C_L_List[c], MAX_DELTA_B=MAX_DELTA_B)
 
                     if minimumRevTime < optimalRevTime:
                         optimalRevTime = minimumRevTime
@@ -461,6 +461,7 @@ def plotResults(AR, S):
                         bendingConstrainedLoadFactor = N_MAX_BENDING
                         loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
                         velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
+                        dragCoeffAtOptimal = DRAG_COEFF_AT_OPTIMAL
 
                     Z[y][x] = minimumRevTime
 
@@ -482,6 +483,7 @@ def plotResults(AR, S):
     print "Avg. Chord at Optimal: ", averageChordAtOptimal
     print "Root Chord at Opt:", rootChordAtOptimal
     print "Tip Chord at Opt:", tipChordAtOptimal
+    print "Drag Coeff at Opt:", dragCoeffAtOptimal
     print "Velocity at Max Thrust:", maxVelocityAtThrust
     print "Bending Constrained Load Factor:", bendingConstrainedLoadFactor
     print "Load Factor is Bending Constrained? : ", loadFactorIsBendingConstrained
@@ -494,7 +496,7 @@ def plotResults(AR, S):
     #contour_filled = plt.contourf(X, Y, Z, colors=c)
     contour_filled = plt.contour(X, Y, Z)
     plt.colorbar(contour, label="Rev. Time (sec)")
-    plt.title('Revolution Time vs. Aspect-Ratio and Reference-Area')
+    plt.title('Revolution Time vs. AR and S_ref (Delta/B=%.2f)' % MAX_DELTA_B)
     plt.xlabel('Aspect Ratio')
     plt.ylabel('Reference Area (m^2)')
     plt.show()
@@ -506,4 +508,4 @@ if __name__ == '__main__':
     #optimizeRevTime()
     #testCalculateMinRevTimeOptimization()
 
-    plotResults(None, None)
+    plotResults(None, None, 0.1)
