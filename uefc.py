@@ -405,7 +405,25 @@ def optimizeRevTime():
     print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
 
-def plotResults(AR=None, S=None, MAX_DELTA_B=0.1, filled=True):
+def plotTvsDeltaB():
+    T_vals = []
+    deltab_vals = np.linspace(0.03, 0.3, 20)
+
+    xlist = np.linspace(1.0, 12.0, 24)
+    ylist = np.linspace(0.005, 0.2, 50)
+
+    for deltab in deltab_vals:
+        t = plotResults(AR=xlist, S=ylist, MAX_DELTA_B=deltab, display=False)
+        T_vals.append(t)
+
+    plt.plot(deltab_vals, T_vals)
+    plt.title('T_rev vs. delta/b Ratio')
+    plt.xlabel('delta/b')
+    plt.ylabel('T_rev (sec)')
+    plt.show()
+
+
+def plotResults(AR=None, S=None, MAX_DELTA_B=0.1, filled=True, display=True):
     """
     AR: a list of AR values to try
     S: a list of S values to try
@@ -480,39 +498,42 @@ def plotResults(AR=None, S=None, MAX_DELTA_B=0.1, filled=True):
                 except: # if a value fails to calculate (i.e negative argument inside sqrt), set it to NaN
                     Z[y][x] = float('nan')
 
+    if display:
+        print "\n *** FINAL RESULTS ***"
+        print "Optimal Rev. Time: ", optimalRevTime, "sec"
+        print "Optimal S_ref: ", optimalS_REF, "m^2"
+        print "Optimal AR: ", optimalAR,
+        print "Optimal CL: ", optimalCL
+        print ""
+        print "Derived Params at Optimal:"
+        print "Load Factor at Optimal: ", loadFactorAtOptimal
+        print "Velocity at Optimal: ", velocityAtOptimal
+        print "Wing Weight at Optimal: ", wingWeightAtOptimal
+        print "Span at Optimal: ", spanAtOptimal
+        print "Avg. Chord at Optimal: ", averageChordAtOptimal
+        print "Root Chord at Opt:", rootChordAtOptimal
+        print "Tip Chord at Opt:", tipChordAtOptimal
+        print "Drag Coeff at Opt:", dragCoeffAtOptimal
+        print "Velocity at Max Thrust:", maxVelocityAtThrust
+        print "Bending Constrained Load Factor:", bendingConstrainedLoadFactor
+        print "Load Factor is Bending Constrained? : ", loadFactorIsBendingConstrained
+        print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
-    print "\n *** FINAL RESULTS ***"
-    print "Optimal Rev. Time: ", optimalRevTime, "sec"
-    print "Optimal S_ref: ", optimalS_REF, "m^2"
-    print "Optimal AR: ", optimalAR,
-    print "Optimal CL: ", optimalCL
-    print ""
-    print "Derived Params at Optimal:"
-    print "Load Factor at Optimal: ", loadFactorAtOptimal
-    print "Velocity at Optimal: ", velocityAtOptimal
-    print "Wing Weight at Optimal: ", wingWeightAtOptimal
-    print "Span at Optimal: ", spanAtOptimal
-    print "Avg. Chord at Optimal: ", averageChordAtOptimal
-    print "Root Chord at Opt:", rootChordAtOptimal
-    print "Tip Chord at Opt:", tipChordAtOptimal
-    print "Drag Coeff at Opt:", dragCoeffAtOptimal
-    print "Velocity at Max Thrust:", maxVelocityAtThrust
-    print "Bending Constrained Load Factor:", bendingConstrainedLoadFactor
-    print "Load Factor is Bending Constrained? : ", loadFactorIsBendingConstrained
-    print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
+        plt.figure()
 
-    plt.figure()
+        if filled:
+            contour = plt.contourf(X, Y, Z)
+        else:
+            contour = plt.contour(X, Y, Z)
+        
+        plt.colorbar(contour, label="Rev. Time (sec)")
+        plt.title('Revolution Time vs. AR and S_ref (Delta/B=%.2f)' % MAX_DELTA_B)
+        plt.xlabel('Aspect Ratio')
+        plt.ylabel('Reference Area (m^2)')
+        plt.show()
 
-    if filled:
-        contour = plt.contourf(X, Y, Z)
-    else:
-        contour = plt.contour(X, Y, Z)
-    
-    plt.colorbar(contour, label="Rev. Time (sec)")
-    plt.title('Revolution Time vs. AR and S_ref (Delta/B=%.2f)' % MAX_DELTA_B)
-    plt.xlabel('Aspect Ratio')
-    plt.ylabel('Reference Area (m^2)')
-    plt.show()
+    return optimalRevTime
+
 
 
 
@@ -521,9 +542,11 @@ if __name__ == '__main__':
     Uncomment the functions below to see their results.
     """
 
-    planeVanillaAnalysis()
+    #planeVanillaAnalysis()
 
     #optimizeRevTime()
     #testCalculateMinRevTimeOptimization()
 
     #plotResults(MAX_DELTA_B = 0.1)
+
+    plotTvsDeltaB()
