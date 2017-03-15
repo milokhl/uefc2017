@@ -1,3 +1,6 @@
+### By Milo Knowles ###
+### March 15, 2017 ###
+
 #!/usr/bin/env
 
 import numpy as np
@@ -514,9 +517,13 @@ def plotResults(AR=None, S=None, MAX_DELTA_B=0.1, filled=True):
 
 
 if __name__ == '__main__':
-    #planeVanillaAnalysis()
+    """
+    Uncomment the functions below to see their results.
+    """
+
+    planeVanillaAnalysis()
 
     #optimizeRevTime()
     #testCalculateMinRevTimeOptimization()
 
-    plotResults(MAX_DELTA_B = 0.1)
+    #plotResults(MAX_DELTA_B = 0.1)
