@@ -3,6 +3,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+
 # DEFINE CONSTANTS #
 PI = 3.14159
 G = 9.81 # m/s^2
@@ -43,7 +45,6 @@ print "W_FUSE: ", WEIGHT_FUSE
 print "W_WING (manual): ", WEIGHT_WING
 
 TAU = 0.11 # airfoil thickness ratio
-
 # END PLANE VANILLA PARAMETERS #
 
 
@@ -79,10 +80,6 @@ def calculateWingWeight(tip_chord, root_chord, span, rho, g, tau):
     diff = root_chord**3 - tip_chord**3
 
     return coeff * diff * g
-
-
-calcWingWeight = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
-print "Calculated Wing Weight: ", calcWingWeight
 
 
 def calculatePayloadWeight(AR, S_ref, CDA0, C_L, c_d, T_MAX, W_fuse, W_wing, e):
@@ -179,7 +176,6 @@ def calculateRevolutionTime(W_fuse, rho_foam, g, S_ref, AR, CDA0, c_d, T_MAX, \
     Wpay = 0
     (delta/b)max = 0.1
     """
-
     # calculate the wing weight so that we can get 
     if W_wing == None:
         print "[REV TIME] No wing weight specified, calculating..."
@@ -204,6 +200,10 @@ def calculateRevolutionTime(W_fuse, rho_foam, g, S_ref, AR, CDA0, c_d, T_MAX, \
 
 
 def planeVanillaAnalysis():
+
+
+    calcWingWeight = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
+    print "Calculated Wing Weight: ", calcWingWeight
 
     print "*** WPAY ANALYSIS *** "
     # Note: "make the assumption that c_l = C_L"
@@ -250,7 +250,11 @@ def planeVanillaAnalysis():
 
 
 def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=False):
-    
+    """
+    verbose: should the function output dense print statements?
+
+    The subroutine called by plotResults()
+    """
     if verbose:
         print "\n *** OPTIMIZATION *** \n "
 
@@ -281,21 +285,10 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=Fal
         print "TIP_CHORD: %f  ROOT_CHORD: %f" % (TIP_CHORD, ROOT_CHORD)
         print "V_max due to thrust constraint: ", V_MAX_THRUST
 
-    # calculate lift coefficient using maximum velocity constrained by thrust
-    #C_L = calculateCoeffLift(WEIGHT_FUSE, WING_WEIGHT, 0, RHO_AIR, V_MAX_THRUST)
-    #C_L = 0.8
-
     # Using wing weight, can calculate the maxmimum load factor (not constrained by thrust)
     N_MAX_BENDING = calculate_Maximum_Load_Factor_Given_DeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, \
                                                                           S_REF, MAX_DELTA_B, 0) # Wpay is zero
 
-    #V_MAX_BENDING = calculateBankedVelocityGivenLoadFactor(G, 12.5, bending_constrained_N)
-
-    
-    #print "Bending Constrained Velocity: ", V_MAX_BENDING
-
-    # N can be at most N_MAX_BENDING
-    # V can be at most V_MAX_THRUST
     N = calculateBankedLoadFactorN(WEIGHT_FUSE, WING_WEIGHT, 0, G, 12.5, S_REF, C_L, rho_air=1.225)
 
     N_IS_BENDING_CONSTRAINED = False
@@ -409,7 +402,14 @@ def optimizeRevTime():
     print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
 
-def plotResults(AR, S, MAX_DELTA_B):
+def plotResults(AR=None, S=None, MAX_DELTA_B=0.1, filled=True):
+    """
+    AR: a list of AR values to try
+    S: a list of S values to try
+    MAX_DELTA_B: the maximum bending constraint (delta/B ratio)
+    filled: Whether or not the contour plot should be filled.
+    Creates a search grid using the possible values of AR and S, and optimizes over that grid.
+    """
 
     optimalRevTime = 1000
     optimalS_REF = None
@@ -427,23 +427,32 @@ def plotResults(AR, S, MAX_DELTA_B):
     loadFactorIsBendingConstrained = None
     velocityIsThrustConstrained = None
 
-    xlist = np.linspace(1.0, 12.0, 48) # aspect ratios
-    ylist = np.linspace(0.005, 0.5, 150) # S refs
+    if AR == None:
+        xlist = np.linspace(1.0, 12.0, 48) # aspect ratios
+    else:
+        xlist = AR
+
+    if S == None:
+        ylist = np.linspace(0.005, 0.5, 150) # S refs
+    else:
+        ylist = S
+
     C_L_List = np.linspace(0.4, 1.2, 15)
+
     X, Y = np.meshgrid(xlist, ylist)
     Z = np.zeros(shape=(len(ylist), len(xlist)))
 
-    #print type(xlist)
     for x in range(len(xlist)):
         for y in range(len(ylist)):
             for c in range(len(C_L_List)):
 
                 try:
-
+                    # calculate the min T_rev with given input params
                     minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
                         V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
                          V_IS_THRUST_CONTRAINED, DRAG_COEFF_AT_OPTIMAL = calculateMinRevTimeOptimization(xlist[x], ylist[y], C_L_List[c], MAX_DELTA_B=MAX_DELTA_B)
 
+                    # if the calculate T_rev improves our best T_rev, store the result and the params
                     if minimumRevTime < optimalRevTime:
                         optimalRevTime = minimumRevTime
                         optimalS_REF = ylist[y]
@@ -465,7 +474,7 @@ def plotResults(AR, S, MAX_DELTA_B):
 
                     Z[y][x] = minimumRevTime
 
-                except:
+                except: # if a value fails to calculate (i.e negative argument inside sqrt), set it to NaN
                     Z[y][x] = float('nan')
 
 
@@ -490,16 +499,18 @@ def plotResults(AR, S, MAX_DELTA_B):
     print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
     plt.figure()
-    contour = plt.contourf(X, Y, Z)
-    #plt.clabel(contour, colors = 'k', fmt = '%2.1f', fontsize=12)
-    #c = ('#ff0000', '#ffff00', '#0000FF', '0.6', 'c', 'm')
-    #contour_filled = plt.contourf(X, Y, Z, colors=c)
-    contour_filled = plt.contour(X, Y, Z)
+
+    if filled:
+        contour = plt.contourf(X, Y, Z)
+    else:
+        contour = plt.contour(X, Y, Z)
+    
     plt.colorbar(contour, label="Rev. Time (sec)")
     plt.title('Revolution Time vs. AR and S_ref (Delta/B=%.2f)' % MAX_DELTA_B)
     plt.xlabel('Aspect Ratio')
     plt.ylabel('Reference Area (m^2)')
     plt.show()
+
 
 
 if __name__ == '__main__':
@@ -508,4 +519,4 @@ if __name__ == '__main__':
     #optimizeRevTime()
     #testCalculateMinRevTimeOptimization()
 
-    plotResults(None, None, 0.1)
+    plotResults(MAX_DELTA_B = 0.1)
