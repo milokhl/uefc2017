@@ -4,52 +4,69 @@
 #!/usr/bin/env
 
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 
+# # DEFINE CONSTANTS #
+# PI = 3.14159
+# G = 9.81 # m/s^2
 
+# # PLANE VANILLA PARAMETERS #
+# print "*** PLANE VANILLA PARAMS ***"
+# B = 0.76*2 # m
+# RHO_FOAM = 32.0 # kg / m^3
+# RHO_AIR = 1.225
+# E_FOAM = 19.3 * (10**6) # Pa
+# TIP_CHORD = 0.10 # m
+# ROOT_CHORD = 0.20 # m
+# TAPER_RATIO = float(TIP_CHORD) / ROOT_CHORD
+# e = 0.95 # efficiency
+# EPSILON = 0.03
+# S_REF = 2.0 * (B / 2.0) * (TIP_CHORD+ROOT_CHORD) / 2.0  # m^2
+# print "S_REF: ", S_REF
 
-# DEFINE CONSTANTS #
-PI = 3.14159
-G = 9.81 # m/s^2
+# AR = B**2 / S_REF
+# print "AR: ", AR
 
-# PLANE VANILLA PARAMETERS #
-print "*** PLANE VANILLA PARAMS ***"
-B = 0.76*2 # m
-RHO_FOAM = 32.0 # kg / m^3
-RHO_AIR = 1.225
-E_FOAM = 19.3 * (10**6) # Pa
-TIP_CHORD = 0.10 # m
-ROOT_CHORD = 0.20 # m
-TAPER_RATIO = float(TIP_CHORD) / ROOT_CHORD
-e = 0.95 # efficiency
-EPSILON = 0.03
-S_REF = 2.0 * (B / 2.0) * (TIP_CHORD+ROOT_CHORD) / 2.0  # m^2
-print "S_REF: ", S_REF
+# T_MAX = 0.7 # N
+# CDA0 = 0.004 # m^2
 
-AR = B**2 / S_REF
-print "AR: ", AR
+# # PROFILE DRAG COEFFICIENT STUFF 
+# c_d_0 = 0.020
+# c_d_1 = -0.004
+# c_d_2 = 0.020
+# c_d_8 = 1.0
+# c_l_0 = 0.8
 
-T_MAX = 0.7 # N
-CDA0 = 0.004 # m^2
+# # C_L is for Plane Vanilla
+# C_L = 0.8
 
-# PROFILE DRAG COEFFICIENT STUFF 
-c_d_0 = 0.020
-c_d_1 = -0.004
-c_d_2 = 0.020
-c_d_8 = 1.0
-c_l_0 = 0.8
+# WEIGHT_WING = 0.7348 # N 
+# WEIGHT_FUSE = 2.7 # N
+# print "W_FUSE: ", WEIGHT_FUSE
+# print "W_WING (manual): ", WEIGHT_WING
 
-# C_L is for Plane Vanilla
-C_L = 0.8
+# TAU = 0.11 # airfoil thickness ratio
+# # END PLANE VANILLA PARAMETERS #
 
-WEIGHT_WING = 0.7348 # N 
-WEIGHT_FUSE = 2.7 # N
-print "W_FUSE: ", WEIGHT_FUSE
-print "W_WING (manual): ", WEIGHT_WING
+def calculateMaxVelocityQuadratic(C_d, rho_air, S_ref, T0=1.0, T1=-0.08, T2=-0.0028):
+    """
+    Solves a quadratic eqn to find the maximum velocity.
+    """
+    a = T2 - 0.5*rho_air*C_d*S_ref
+    b = T1
+    c = T0
 
-TAU = 0.11 # airfoil thickness ratio
-# END PLANE VANILLA PARAMETERS #
+    if (b**2 - 4*a*c) < 0: # cannot have negative inside root
+        print "Error: negative argument inside of root in calculateMaxVelocityQuadratic"
 
+    ans1 = (-a + math.sqrt(b**2 - 4*a*c)) / (2*a)
+    ans2 = (-a - math.sqrt(b**2 - 4*a*c)) / (2*a)
+
+    if ans1<0 and ans2<0:
+        print "Error: both solutions to quadratic are negative"
+
+    return max(ans1, ans2)
 
 def planeVanillaChord(y):
     """
@@ -64,6 +81,7 @@ def calculateProfileDragCoefficient(c_l, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8):
     return c_d
 
 def calculateCoeffDrag(CDA0, S, profDragCoeff, C_L, AR, e):
+    PI = 3.14159
     t1 = float(CDA0) / S
     t2 = profDragCoeff
     t3 = float(C_L**2) / (PI * AR * e)
@@ -88,7 +106,9 @@ def calculateWingWeight(tip_chord, root_chord, span, rho, g, tau):
 def calculatePayloadWeight(AR, S_ref, CDA0, C_L, c_d, T_MAX, W_fuse, W_wing, e):
     """
     Equation (8) from the notes.
+    Wpay = T/((CDA0/S)/Cl + cd_prof/Cl + Cl/(math.pi*AR*e)) - Wfuse - Wwing
     """
+    PI = 3.14159
     denom1 = float(CDA0) / (S_ref * C_L)
     denom2 = float(c_d) / C_L
     denom3 = float(C_L) / (PI * AR * e)
@@ -110,7 +130,7 @@ def calculateDeltaBRatio(W_fuse, W_pay, E, tau, epsilon, lambda_, aspect_ratio, 
 
 
 def calculatePayloadWeightUpperBoundGivenDeltaBMax(W_fuse, E, tau, epsilon, lambda_, aspect_ratio, \
-                                                   S_ref, deltaBMaxRatio, N=1):
+                                                   S_ref, deltaBMaxRatio=0.1, N=1):
     """
     Given a delta/b maximum ratio, determine the maximum value that the W_pay can have.
     """
@@ -148,24 +168,27 @@ def calculateLoadFactorGivenVelocity(velocity, radius, g):
     return term1**0.5
 
 
-def calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, g, R_turn, S_ref, C_l, rho_air=1.225):
+def calculateBankedLoadFactorN(W_fuse, W_wing, W_pay, g, R_turn, S_ref, C_l, rho_air=1.225, handle_ex=True):
     """
     Calculats the load factor N during a banked turn of radius R_turn.
     """
     first = 1 - ((W_fuse + W_pay + W_wing) / (0.5 * rho_air * g * R_turn * S_ref * C_l)) ** 2 
-    # if first < 0:
-    #     print "Error: trying to raise negative number to a fractional power. Returning a load factor of 1.01"
-    #     return 1.01
+
+    if first < 0 and handle_ex==True: # only handle this exception is desired
+        print "Error: trying to raise negative number to a fractional power. Returning a load factor of 1.01"
+        return 1.01
+
     return (first ** (-0.5))
 
 
-def calculateBankedVelocityGivenLoadFactor(G, R, load_factor):
+def calculateBankedVelocityGivenLoadFactor(G, R, load_factor, handle_ex=True):
     """
     use eqn (20)
     """
-    # if load_factor < 1:
-    #     print "Error: load factor of %f is less than 1. Using 1.01." % load_factor
-    #     load_factor = 1.01
+    if load_factor < 1:
+        print "Error: load factor of %f is less than 1. Using 1.01." % load_factor
+        load_factor = 1.01
+
     v = (G * R * (load_factor**2 - 1)**0.5) ** 0.5
     return v
 
@@ -252,7 +275,7 @@ def planeVanillaAnalysis():
 
 
 
-def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=False):
+def calculateMinRevTimeOptimization(AR, S_REF, C_L, WEIGHT_FUSE=1.2, MAX_DELTA_B=0.1, verbose=False):
     """
     verbose: should the function output dense print statements?
 
@@ -260,7 +283,6 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=Fal
     """
     if verbose:
         print "\n *** OPTIMIZATION *** \n "
-
 
     # B and C can be determined by S_REF and AR
     B = (float(S_REF) * AR) ** 0.5
@@ -293,7 +315,6 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=Fal
                                                                           S_REF, MAX_DELTA_B, 0) # Wpay is zero
 
     N = calculateBankedLoadFactorN(WEIGHT_FUSE, WING_WEIGHT, 0, G, 12.5, S_REF, C_L, rho_air=1.225)
-
     N_IS_BENDING_CONSTRAINED = False
     if N >= N_MAX_BENDING:
         N_IS_BENDING_CONSTRAINED = True
@@ -301,7 +322,7 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=Fal
             print "Load factor of %f for AR:%f and SREF:%f exceeds the maximum load factor contrained by bending." % (N, AR, S_REF)
         N = N_MAX_BENDING
 
-    V = calculateBankedVelocityGivenLoadFactor(G, 12.5, N)
+    V = calculateBankedVelocityGivenLoadFactor(G, 12.5, N, handle_ex=True)
     V_IS_THRUST_CONTRAINED = False
     if V > V_MAX_THRUST:
         V_IS_THRUST_CONTRAINED = True
@@ -320,7 +341,64 @@ def calculateMinRevTimeOptimization(AR, S_REF, C_L, MAX_DELTA_B=0.1, verbose=Fal
     # this is always printed
     print "S_REF: %f  AR: %f  CL: %f  Time: %f" % (S_REF, AR, C_L, rev_time)
 
-    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED, C_D
+    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
+    V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED, C_D
+
+
+def calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, WING_WEIGHT, c_d, C_D, T_MAX, \
+                                    RHO_AIR, E_FOAM, TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=2.7, MAX_DELTA_B=0.1, \
+                                    verbose=False):
+    """
+    verbose: should the function output dense print statements?
+    No parameters are derived inside of this function, so it takes in more arguments.
+    """
+    G = 9.81 # m/s^2
+    PI = 3.14159
+
+    # Calculate the maximum velocity given T_max
+    # C_d, rho_air, S_ref, T0=1.0, T1=-0.08, T2=-0.0028
+    V_MAX_THRUST = calculateMaxVelocityQuadratic(C_D, RHO_AIR, S_REF)
+
+    # Using wing weight, can calculate the maxmimum load factor (not constrained by thrust)
+    N_MAX_BENDING = calculate_Maximum_Load_Factor_Given_DeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, \
+                                                                          S_REF, MAX_DELTA_B, 0) # Wpay is zero
+
+    # check if the banked load factor exceeds the bending constraint
+    N = calculateBankedLoadFactorN(WEIGHT_FUSE, WING_WEIGHT, 0, G, 12.5, S_REF, C_L, rho_air=1.225)
+    N_IS_BENDING_CONSTRAINED = False
+    if N >= N_MAX_BENDING:
+        N_IS_BENDING_CONSTRAINED = True
+        if verbose:
+            print "Load factor of %f for AR:%f and SREF:%f exceeds the maximum load factor contrained by bending." % (N, AR, S_REF)
+        N = N_MAX_BENDING
+
+    # check if the banked velocity exceeds the maximum velocity give available thrust
+    V = calculateBankedVelocityGivenLoadFactor(G, 12.5, N, handle_ex=True)
+    V_IS_THRUST_CONTRAINED = False
+    if V > V_MAX_THRUST:
+        V_IS_THRUST_CONTRAINED = True
+        if verbose:
+            print "Velocity of %f for AR:%f and SREF:%f exceeds the maximum velocity at full thrust." % (V, AR, S_REF)
+        V = V_MAX_THRUST
+
+    # calculate the rev. time using velocity
+    if V == 0:
+        print "[ERROR] Printing zero division error."
+        V = 0.01
+
+    rev_time = 2 * PI * 12.5 / V
+
+    if verbose:
+        print "Bending Constrained Load Factor: ", N_MAX_BENDING
+        print "Load factor: ", N
+        print "Velocity: ", V
+        print "Revolution Time: ", rev_time
+
+    # this is always printed
+    print "S_REF: %f  AR: %f  CL: %f  Time: %f" % (S_REF, AR, C_L, rev_time)
+
+    return rev_time, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
+    V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, V_IS_THRUST_CONTRAINED, C_D
 
 
 def testCalculateMinRevTimeOptimization():
@@ -365,7 +443,7 @@ def optimizeRevTime():
 
                 minimumRevTime, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
                 V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
-                 V_IS_THRUST_CONTRAINED= calculateMinRevTimeOptimization(aspect_ratio, area, C_L, MAX_DELTA_B=0.1)
+                 V_IS_THRUST_CONTRAINED = calculateMinRevTimeOptimization(aspect_ratio, area, C_L, MAX_DELTA_B=0.1)
 
                 if minimumRevTime < optimalRevTime:
                     optimalRevTime = minimumRevTime
@@ -525,7 +603,8 @@ def plotResults(AR=None, S=None, MAX_DELTA_B=0.1, filled=True, display=True):
             contour = plt.contourf(X, Y, Z)
         else:
             contour = plt.contour(X, Y, Z)
-        
+            
+
         plt.colorbar(contour, label="Rev. Time (sec)")
         plt.title('Revolution Time vs. AR and S_ref (Delta/B=%.2f)' % MAX_DELTA_B)
         plt.xlabel('Aspect Ratio')
