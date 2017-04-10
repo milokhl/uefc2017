@@ -5,7 +5,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from uefc import calculateMinRevTimeOptimization2, calculatePayloadWeight, calculatePayloadWeightUpperBoundGivenDeltaBMax
-from uefc import calculateWingWeight, calculateCoeffDrag, calculateProfileDragCoefficient
+from uefc import calculateWingWeight, calculateCoeffDrag, calculateProfileDragCoefficient, calculateProfileDragCoeffImproved
+from uefc import calculateReynolds
 
 def objectiveFunction(Wpay, t_rev_empty, t_rev_pay):
     return float(Wpay) / (t_rev_pay + t_rev_empty)
@@ -20,7 +21,6 @@ def optimizeObjective():
     e = 0.95 # efficiency
     CDA0 = 0.004 # m^2
     TAU = 0.11 # airfoil thickness ratio
-    EPSILON = 0.03
     T_MAX = 0.7 # N
 
     # PROFILE DRAG COEFFICIENT STUFF 
@@ -70,8 +70,20 @@ def optimizeObjective():
                 ROOT_CHORD = float(4 * C) / 3  
                 TAPER_RATIO = float(TIP_CHORD) / ROOT_CHORD
                 WING_WEIGHT = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
+                
                 c_d = calculateProfileDragCoefficient(C_L, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8)
+                print "Rough c_d:", c_d
+
+                # c_L, Re, tau, Re_ref=100000, a = -0.75
+                Re = calculateReynolds(RHO_AIR, 7.0, C)
+                print "Calculated Re:", Re
+                c_d = calculateProfileDragCoeffImproved(C_L, Re, TAU)
+
+                print "Better c_d:", c_d
                 C_D = calculateCoeffDrag(CDA0, S_REF, c_d, C_L, AR, e)
+
+                # EPSILON is a function of tau!!
+                EPSILON = 0.10 - 0.5 * TAU
 
                 # get the maximum payload weight in current config
                 bendingConstrainedPayloadWeight = calculatePayloadWeightUpperBoundGivenDeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, \
