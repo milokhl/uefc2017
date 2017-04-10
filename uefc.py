@@ -80,6 +80,19 @@ def calculateProfileDragCoefficient(c_l, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8):
     c_d = c_d_0 + c_d_1 * (c_l - c_l_0) + c_d_2 * ((c_l-c_l_0)**2) + c_d_8 * ((c_l-c_l_0)**8)
     return c_d
 
+def calculateProfileDragCoeffImproved(c_l, Re, tau, Re_ref=100000, a = -0.75):
+    c_d_0 = 0.020 * (1 + tau**2)
+    c_d_1 = -0.005 / (1 + 6*tau)
+    c_d_2 = 0.160 / (1 + 60*tau)
+    c_d_8 = 1.0
+    c_l_0 = 1.25 - 3.0 * tau
+    c_d = c_d_0 + c_d_1 * (c_l - c_l_0) + c_d_2 * ((c_l-c_l_0)**2) + c_d_8 * ((c_l-c_l_0)**8) * (Re / Re_ref)**a
+    return c_d
+
+def calculateReynolds(rho_air, V, c, mu = 1.81e-5):
+    res = float(rho_air * V * c) / mu
+    return res
+
 def calculateCoeffDrag(CDA0, S, profDragCoeff, C_L, AR, e):
     PI = 3.14159
     t1 = float(CDA0) / S
