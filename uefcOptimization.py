@@ -1,12 +1,12 @@
 ### By Milo Knowles ###
-### March 15, 2017 ###
+### April 10, 2017 ###
 
 #!/usr/bin/env
 import numpy as np
 import matplotlib.pyplot as plt
 from uefc import calculateMinRevTimeOptimization2, calculatePayloadWeight, calculatePayloadWeightUpperBoundGivenDeltaBMax
 from uefc import calculateWingWeight, calculateCoeffDrag, calculateProfileDragCoefficient, calculateProfileDragCoeffImproved
-from uefc import calculateReynolds
+from uefc import calculateReynolds, calculateCG
 
 def objectiveFunction(Wpay, t_rev_empty, t_rev_pay):
     return float(Wpay) / (t_rev_pay + t_rev_empty)
@@ -35,8 +35,10 @@ def optimizeObjective():
     ### END PARAMS ###
     aspectRatios = [0.25 * i for i in range(20, 50)]
     S_REFs = [0.005 * i for i in range(10,110)]
-    TAUs = [0.08, 0.10, 0.12, 0.14] # airfoil thickness ratios
-    MATERIALS = {'dow_blue': (25.5, 12.0e6), 'hiload_60': (33.0, 19.0e6)}
+    TAUs = [0.08, 0.10, 0.12] # airfoil thickness ratios
+    #MATERIALS = {'dow_blue': (25.5, 12.0e6), 'hiload_60': (33.0, 19.0e6)}
+
+    MATERIALS = {'dow_blue': (25.5, 12.0e6)}
 
     # maintain the best objective score
     bestScore = 0
@@ -67,8 +69,8 @@ def optimizeObjective():
         for AR in aspectRatios: # AR we are trying
             for S_REF in S_REFs: # S_REF we are trying
                 for TAU in TAUs: # thickness to try
-                    for C_L in [0.6, 0.7, 0.8, 0.9]: # C_L we are trying
-                        for TAPER_RATIO in [0.9, 0.8, 0.5, 0.3, 0.2]:
+                    for C_L in [0.6, 0.7, 0.8, 0.9, 1.0, 1.1]: # C_L we are trying
+                        for TAPER_RATIO in [0.3]:
 
                             RHO_FOAM = MATERIALS[material][0]
                             E_FOAM = MATERIALS[material][1]
@@ -91,8 +93,10 @@ def optimizeObjective():
                             # TAPER_RATIO = float(TIP_CHORD) / ROOT_CHORD
                             WING_WEIGHT = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
 
+                            print "Wing Weight (N):", WING_WEIGHT
+
                             # calculate the weight of the fuselage
-                            WEIGHT_FUSE = (0.145 + (0.060*B / B_PV) + (0.045 * S_REF / S_PV)) * G
+                            WEIGHT_FUSE = (0.145 + (0.060 * B / B_PV) + (0.045 * (S_REF / S_PV))) * G
                             print "Weight fuse (N):", WEIGHT_FUSE
 
                             # c_d = calculateProfileDragCoefficient(C_L, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8)
@@ -115,17 +119,13 @@ def optimizeObjective():
                             maxPayloadWeight = calculatePayloadWeight(AR, S_REF, CDA0, C_L, c_d, T_MAX, WEIGHT_FUSE, WING_WEIGHT, e)
                             payloadWeight = min(bendingConstrainedPayloadWeight, maxPayloadWeight) # cannot exceed the bending constrained wpay
 
-                            # get the Trev time WITHOUT payload
-                            # Args: AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, WING_WEIGHT, c_d, C_D, T_MAX, \
-                                               # RHO_AIR, E_FOAM, TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=2.7, MAX_DELTA_B=0.1, \
-                                               # verbose=False
+
                             tRevEmpty, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
                             V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
                              V_IS_THRUST_CONTRAINED, C_D = calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, \
                                                                                             WING_WEIGHT, c_d, C_D, T_MAX, RHO_AIR, E_FOAM, \
                                                                                             TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=WEIGHT_FUSE, \
                                                                                             MAX_DELTA_B=0.1, verbose=True)
-
                             # get the Trev time WITH payload included
                             tRevPay, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
                             V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
@@ -165,8 +165,8 @@ def optimizeObjective():
     print "\n *** FINAL RESULTS ***"
     print "Best Objective Score: ", bestScore
     print "Optimal S_REF: ", optimalS_REF, "m^2"
-    print "Optimal AR: ", optimalAR,
-    print "Optimal CL: ", optimalCL,
+    print "Optimal AR: ", optimalAR
+    print "Optimal CL: ", optimalCL
     print "Optimal TAU: ", optimalTau
     print "Optimal Material:", optimalMaterial
     print "Optimal Taper Ratio:", optimalTaperRatio
@@ -187,9 +187,55 @@ def optimizeObjective():
     print "Velocity is Thrust Constrained? : ", velocityIsThrustConstrained
 
 
-def main():
-    optimizeObjective()
+def calculatePlaneWeightEmpty():
+    """
+    S_ref = 0.3
+    AR = 10.7
+    TAU = 0.11
+    TAPER = 0.3
+    """
+    ### SET PARAMETERS ###
+    S_REF = 0.3 # m^2
+    AR = 10.7
+    TAU = 0.11
+    PI = 3.14159
+    G = 9.81 # m/s^2
+    B_PV = 0.76 * 2 # m
+    S_PV = 0.228 # m^2
+    TAPER_RATIO = 0.3
 
+    B = (float(S_REF) * AR) ** 0.5
+    C = (float(S_REF) / AR) ** 0.5
+
+    print "B:", B
+    print "C:", C
+
+    ### END PARAMS ###
+    MATERIALS = {'dow_blue': (25.5, 12.0e6), 'hiload_60': (33.0, 19.0e6)}
+    RHO_FOAM = MATERIALS['dow_blue'][0]
+    E_FOAM = MATERIALS['dow_blue'][1]
+
+    # Derived design variables
+    # B and C can be determined by S_REF and AR
+    ROOT_CHORD = 2.0 * C / (1 + TAPER_RATIO)
+    TIP_CHORD = TAPER_RATIO * ROOT_CHORD
+    print "TIP: ", TIP_CHORD, "ROOT: ", ROOT_CHORD
+    WING_WEIGHT = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
+    print "Wing Weight (N):", WING_WEIGHT
+    WEIGHT_FUSE = (0.145 + (0.060*B / B_PV) + (0.045 * S_REF / S_PV)) * G
+    print "Weight fuse (N):", WEIGHT_FUSE
+
+    WEIGHT_EMPTY = WING_WEIGHT + WEIGHT_FUSE
+    print "Empty weight:", WEIGHT_EMPTY
+    return WEIGHT_EMPTY
+
+def main():
+    #optimizeObjective()
+    calculatePlaneWeightEmpty()
+
+    # masses = {'fuse':(0,0), 'tail':(0,0), 'wing':(0,0), 'payload':(0,0)}
+    # res = calculateCG(masses)
+    # print res
 
 if __name__ == '__main__':
     main()
