@@ -15,12 +15,12 @@ def optimizeObjective():
     ### SET PARAMETERS ###
     PI = 3.14159
     G = 9.81 # m/s^2
-    RHO_FOAM = 32.0 # kg / m^3
     RHO_AIR = 1.225
-    E_FOAM = 19.3 * (10**6) # Pa
-    e = 0.95 # efficiency
+    e = 0.94 # efficiency
+    B_PV = 0.76 * 2 # m
+    S_PV = 0.39 # m^2
+
     CDA0 = 0.004 # m^2
-    TAU = 0.11 # airfoil thickness ratio
     T_MAX = 0.7 # N
 
     # PROFILE DRAG COEFFICIENT STUFF 
@@ -33,9 +33,10 @@ def optimizeObjective():
     WEIGHT_FUSE = 2.7 # N
 
     ### END PARAMS ###
-    aspectRatios = [0.5 * i for i in range(2, 20)]
-    S_REFs = [0.005 * i for i in range(1,80)]
-    #C_Ls = [0.3 + 0.05 * i for i in range(1, 50)]
+    aspectRatios = [0.25 * i for i in range(20, 50)]
+    S_REFs = [0.005 * i for i in range(10,110)]
+    TAUs = [0.08, 0.10, 0.12, 0.14] # airfoil thickness ratios
+    MATERIALS = {'dow_blue': (25.5, 12.0e6), 'hiload_60': (33.0, 19.0e6)}
 
     # maintain the best objective score
     bestScore = 0
@@ -44,6 +45,11 @@ def optimizeObjective():
     optimalS_REF = None
     optimalAR = None
     optimalCL = None
+    optimalTau = None
+    optimalTaperRatio = None
+    optimalMaterial = None
+    trevEmptyAtOptimal = None
+    trevPayAtOptimal = None
     loadFactorAtOptimal = None
     velocityAtOptimal = None
     wingWeightAtOptimal = None
@@ -57,89 +63,116 @@ def optimizeObjective():
     velocityIsThrustConstrained = None
     payloadWeightAtOptimal = None
 
-    for AR in aspectRatios: # AR we are trying
-        for S_REF in S_REFs: # S_REF we are trying
-            for C_L in [0.65, 0.7, 0.8]: # C_L we are trying
+    for material in MATERIALS:
+        for AR in aspectRatios: # AR we are trying
+            for S_REF in S_REFs: # S_REF we are trying
+                for TAU in TAUs: # thickness to try
+                    for C_L in [0.6, 0.7, 0.8, 0.9]: # C_L we are trying
+                        for TAPER_RATIO in [0.9, 0.8, 0.5, 0.3, 0.2]:
 
-                # Derived design variables
-                
-                # B and C can be determined by S_REF and AR
-                B = (float(S_REF) * AR) ** 0.5
-                C = (float(S_REF) / AR) ** 0.5
-                TIP_CHORD = float(2 * C) / 3
-                ROOT_CHORD = float(4 * C) / 3  
-                TAPER_RATIO = float(TIP_CHORD) / ROOT_CHORD
-                WING_WEIGHT = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
-                
-                c_d = calculateProfileDragCoefficient(C_L, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8)
-                print "Rough c_d:", c_d
+                            RHO_FOAM = MATERIALS[material][0]
+                            E_FOAM = MATERIALS[material][1]
 
-                # c_L, Re, tau, Re_ref=100000, a = -0.75
-                Re = calculateReynolds(RHO_AIR, 7.0, C)
-                print "Calculated Re:", Re
-                c_d = calculateProfileDragCoeffImproved(C_L, Re, TAU)
+                            # Derived design variables
+                            # B and C can be determined by S_REF and AR
+                            B = (float(S_REF) * AR) ** 0.5
+                            C = (float(S_REF) / AR) ** 0.5
 
-                print "Better c_d:", c_d
-                C_D = calculateCoeffDrag(CDA0, S_REF, c_d, C_L, AR, e)
+                            #TIP_CHORD = (2.0 * C) / (1 + 1.0 / TAPER_RATIO)
 
-                # EPSILON is a function of tau!!
-                EPSILON = 0.10 - 0.5 * TAU
+                            ROOT_CHORD = 2.0 * C / (1 + TAPER_RATIO)
+                            TIP_CHORD = TAPER_RATIO * ROOT_CHORD
 
-                # get the maximum payload weight in current config
-                bendingConstrainedPayloadWeight = calculatePayloadWeightUpperBoundGivenDeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, \
-                                                                                                TAPER_RATIO, AR, S_REF, deltaBMaxRatio=0.1, N=1.0)
+                            #ROOT_CHORD = float(TIP_CHORD) / TAPER_RATIO
+                            print "TIP: ", TIP_CHORD, "ROOT: ", ROOT_CHORD
 
-                maxPayloadWeight = calculatePayloadWeight(AR, S_REF, CDA0, C_L, c_d, T_MAX, WEIGHT_FUSE, WING_WEIGHT, e)
-                payloadWeight = min(bendingConstrainedPayloadWeight, maxPayloadWeight) # cannot exceed the bending constrained wpay
+                            # TIP_CHORD = float(2 * C) / 3
+                            # ROOT_CHORD = float(4 * C) / 3  
+                            # TAPER_RATIO = float(TIP_CHORD) / ROOT_CHORD
+                            WING_WEIGHT = calculateWingWeight(TIP_CHORD, ROOT_CHORD, B, RHO_FOAM, G, TAU)
 
-                # get the Trev time WITHOUT payload
-                # Args: AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, WING_WEIGHT, c_d, C_D, T_MAX, \
-                                   # RHO_AIR, E_FOAM, TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=2.7, MAX_DELTA_B=0.1, \
-                                   # verbose=False
-                tRevEmpty, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
-                V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
-                 V_IS_THRUST_CONTRAINED, C_D = calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, \
-                                                                                WING_WEIGHT, c_d, C_D, T_MAX, RHO_AIR, E_FOAM, \
-                                                                                TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=WEIGHT_FUSE, \
-                                                                                MAX_DELTA_B=0.1, verbose=True)
+                            # calculate the weight of the fuselage
+                            WEIGHT_FUSE = (0.145 + (0.060*B / B_PV) + (0.045 * S_REF / S_PV)) * G
+                            print "Weight fuse (N):", WEIGHT_FUSE
 
-                # get the Trev time WITH payload included
-                tRevPay, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
-                V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
-                 V_IS_THRUST_CONTRAINED, C_D = calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, \
-                                                                                WING_WEIGHT, c_d, C_D, T_MAX, RHO_AIR, E_FOAM, \
-                                                                                TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=(WEIGHT_FUSE + payloadWeight), \
-                                                                                MAX_DELTA_B=0.1, verbose=True)
+                            # c_d = calculateProfileDragCoefficient(C_L, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8)
+                            # print "c_d:", c_d
 
-                # get the objective score
-                score = objectiveFunction(payloadWeight, tRevEmpty, tRevPay)
+                            Re = calculateReynolds(RHO_AIR, 7.0, C)
+                            print "Calculated Re:", Re
+                            c_d = calculateProfileDragCoeffImproved(C_L, Re, TAU)
 
-                if score > bestScore:
-                    bestScore = score
-                    optimalS_REF = S_REF
-                    optimalAR = AR
-                    optimalCL = C_L
+                            print "Better c_d:", c_d
+                            C_D = calculateCoeffDrag(CDA0, S_REF, c_d, C_L, AR, e)
 
-                    loadFactorAtOptimal = N
-                    velocityAtOptimal = V
-                    wingWeightAtOptimal = WING_WEIGHT
-                    spanAtOptimal = B
-                    averageChordAtOptimal = C
-                    rootChordAtOptimal = ROOT_CHORD
-                    tipChordAtOptimal = TIP_CHORD
-                    maxVelocityAtThrust = V_MAX_THRUST
-                    bendingConstrainedLoadFactor = N_MAX_BENDING
-                    loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
-                    velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
-                    payloadWeightAtOptimal = payloadWeight
+                            # EPSILON is a function of tau!!
+                            EPSILON = 0.10 - 0.5 * TAU
+
+                            # get the maximum payload weight in current config
+                            bendingConstrainedPayloadWeight = calculatePayloadWeightUpperBoundGivenDeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, \
+                                                                                                            TAPER_RATIO, AR, S_REF, deltaBMaxRatio=0.1, N=1.0)
+
+                            maxPayloadWeight = calculatePayloadWeight(AR, S_REF, CDA0, C_L, c_d, T_MAX, WEIGHT_FUSE, WING_WEIGHT, e)
+                            payloadWeight = min(bendingConstrainedPayloadWeight, maxPayloadWeight) # cannot exceed the bending constrained wpay
+
+                            # get the Trev time WITHOUT payload
+                            # Args: AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, WING_WEIGHT, c_d, C_D, T_MAX, \
+                                               # RHO_AIR, E_FOAM, TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=2.7, MAX_DELTA_B=0.1, \
+                                               # verbose=False
+                            tRevEmpty, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
+                            V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
+                             V_IS_THRUST_CONTRAINED, C_D = calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, \
+                                                                                            WING_WEIGHT, c_d, C_D, T_MAX, RHO_AIR, E_FOAM, \
+                                                                                            TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=WEIGHT_FUSE, \
+                                                                                            MAX_DELTA_B=0.1, verbose=True)
+
+                            # get the Trev time WITH payload included
+                            tRevPay, N, V, WING_WEIGHT, B, C, TIP_CHORD, ROOT_CHORD, \
+                            V_MAX_THRUST, N_MAX_BENDING, N_IS_BENDING_CONSTRAINED, \
+                             V_IS_THRUST_CONTRAINED, C_D = calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD, \
+                                                                                            WING_WEIGHT, c_d, C_D, T_MAX, RHO_AIR, E_FOAM, \
+                                                                                            TAU, EPSILON, TAPER_RATIO, WEIGHT_FUSE=(WEIGHT_FUSE + payloadWeight), \
+                                                                                            MAX_DELTA_B=0.1, verbose=True)
+
+                            # get the objective score
+                            score = objectiveFunction(payloadWeight, tRevEmpty, tRevPay)
+
+                            if score > bestScore:
+                                bestScore = score
+                                optimalS_REF = S_REF
+                                optimalAR = AR
+                                optimalCL = C_L
+                                optimalTau = TAU
+                                optimalMaterial = material
+                                optimalTaperRatio = TAPER_RATIO
+
+                                trevEmptyAtOptimal = tRevEmpty
+                                trevPayAtOptimal = tRevPay
+                                loadFactorAtOptimal = N
+                                velocityAtOptimal = V
+                                wingWeightAtOptimal = WING_WEIGHT
+                                spanAtOptimal = B
+                                averageChordAtOptimal = C
+                                rootChordAtOptimal = ROOT_CHORD
+                                tipChordAtOptimal = TIP_CHORD
+                                maxVelocityAtThrust = V_MAX_THRUST
+                                bendingConstrainedLoadFactor = N_MAX_BENDING
+                                loadFactorIsBendingConstrained = N_IS_BENDING_CONSTRAINED
+                                velocityIsThrustConstrained = V_IS_THRUST_CONTRAINED
+                                payloadWeightAtOptimal = payloadWeight
 
 
     print "\n *** FINAL RESULTS ***"
     print "Best Objective Score: ", bestScore
     print "Optimal S_REF: ", optimalS_REF, "m^2"
     print "Optimal AR: ", optimalAR,
-    print "Optimal CL: ", optimalCL, "\n"
-    print "*** DERIVED PARAMETERS ***"
+    print "Optimal CL: ", optimalCL,
+    print "Optimal TAU: ", optimalTau
+    print "Optimal Material:", optimalMaterial
+    print "Optimal Taper Ratio:", optimalTaperRatio
+    print "\n *** DERIVED PARAMETERS ***"
+    print "Revolution Time (payload):", trevPayAtOptimal
+    print "Revolution Time (empty):", trevEmptyAtOptimal
     print "Load Factor at Optimal: ", loadFactorAtOptimal
     print "Velocity at Optimal: ", velocityAtOptimal
     print "Payload Weight at Optimal:", payloadWeightAtOptimal
