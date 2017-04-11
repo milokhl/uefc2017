@@ -49,6 +49,20 @@ import matplotlib.pyplot as plt
 # TAU = 0.11 # airfoil thickness ratio
 # # END PLANE VANILLA PARAMETERS #
 
+
+def calculateCG(mass_distance_dictionary):
+    """
+    mass_distance_dictionary: {'object_name': (mass, distance)}
+    """
+    weightedSum = 0
+    totalMass = 0
+    for component in mass_distance_dictionary:
+        weightedSum += (mass_distance_dictionary[component][0] * mass_distance_dictionary[component][1])
+        totalMass += mass_distance_dictionary[component][0]
+
+    return weightedSum / totalMass
+
+
 def calculateMaxVelocityQuadratic(C_d, rho_air, S_ref, T0=1.0, T1=-0.08, T2=-0.0028):
     """
     Solves a quadratic eqn to find the maximum velocity.
