@@ -76,6 +76,14 @@ def planeVanillaChord(y):
     return (ROOT_CHORD, TIP_CHORD) * (1- (2*y / B)) + TIP_CHORD
 
 
+def calculateSpanEfficiency(C_L, dihedral, AR, b, R, N, e0):
+    PI = 3.14159
+    r_hat = float(b) / (2 * R * N)
+    B = (C_L * (1 + 4.0/AR) * r_hat) / (dihedral * 2 * PI)
+    e = e0 * (1 - 0.5 * r_hat**2) * math.cos(math.radians(B))**2
+    return e
+
+
 def calculateProfileDragCoefficient(c_l, c_l_0, c_d_0, c_d_1, c_d_2, c_d_8):
     c_d = c_d_0 + c_d_1 * (c_l - c_l_0) + c_d_2 * ((c_l-c_l_0)**2) + c_d_8 * ((c_l-c_l_0)**8)
     return c_d
@@ -371,6 +379,7 @@ def calculateMinRevTimeOptimization2(AR, S_REF, C_L, B, C, TIP_CHORD, ROOT_CHORD
     # Calculate the maximum velocity given T_max
     # C_d, rho_air, S_ref, T0=1.0, T1=-0.08, T2=-0.0028
     V_MAX_THRUST = calculateMaxVelocityQuadratic(C_D, RHO_AIR, S_REF)
+    print "MAX V:", V_MAX_THRUST
 
     # Using wing weight, can calculate the maxmimum load factor (not constrained by thrust)
     N_MAX_BENDING = calculate_Maximum_Load_Factor_Given_DeltaBMax(WEIGHT_FUSE, E_FOAM, TAU, EPSILON, TAPER_RATIO, AR, \
