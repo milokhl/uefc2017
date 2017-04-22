@@ -660,8 +660,9 @@ if __name__ == '__main__':
     #planeVanillaAnalysis()
 
     #optimizeRevTime()
+    
     #testCalculateMinRevTimeOptimization()
 
     #plotResults(MAX_DELTA_B = 0.1)
 
-    plotTvsDeltaB()
+    #plotTvsDeltaB()
