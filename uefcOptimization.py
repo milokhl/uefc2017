@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from uefc import calculateMinRevTimeOptimization2, calculatePayloadWeight, calculatePayloadWeightUpperBoundGivenDeltaBMax
 from uefc import calculateWingWeight, calculateCoeffDrag, calculateProfileDragCoefficient, calculateProfileDragCoeffImproved
-from uefc import calculateReynolds, calculateCG
+from uefc import calculateReynolds, calculateCG, calculateSpanEfficiency, calculateDeltaBRatio
 
 def objectiveFunction(Wpay, t_rev_empty, t_rev_pay):
     return float(Wpay) / (t_rev_pay + t_rev_empty)
@@ -22,12 +22,8 @@ def doAllCalculations():
     e_0_empty = 0.9669 # 
     e_0_pay = 0.9899 # 
 
-
-
     B_PV = 0.76 * 2 # m
     S_PV = 0.228 # m^2
-    # B_PV = 0.76 * 2 # m
-    # S_PV = 0.39 # m^2
 
     CDA0 = 0.004 # m^2
     T_MAX = 0.7 # N
@@ -431,10 +427,102 @@ def calculatePlaneWeightEmpty():
     return WEIGHT_EMPTY
 
 
+def fuckThis():
+    G = 9.81
+    AR = 12.7
+    tau = 0.12
+    dihedral = 0.1745 # rad
+    b = 2.254 # m # set this back to 2.254
+    N = 1.02
+    R = 12.5
+    CDA0 = 0.004 # m^2
+    E_foam = 1.2e7
+    rho_foam = 25.5
+    epsilon = 0.10 - 0.5 * tau
+    rho = 1.225
+    S_ref = 0.4
+    lamda = 0.40
+
+    C = (float(S_ref) / AR) ** 0.5
+    c_root = 2.0 * C / (1 + lamda)
+    c_tip = lamda * c_root
+    print "TIP: ", c_tip, "ROOT: ", c_root
+
+    Wwing = calculateWingWeight(c_tip, c_root, b, rho_foam, G, tau)
+    print "Wing Weight (N):", Wwing
+
+    #Wwing = 1.3259
+    Wfuse = 3.07
+
+    Wempty = Wwing + Wfuse
+    Wpay = 2.7
+
+    Wloaded = Wempty + Wpay
+
+    # design vars
+    C_L_pay = 1.32
+    C_L_empty = 0.76
+
+    # calculate C_D
+    e0_empty = 0.9886
+    e0_pay = 0.9952
+
+    e_empty = calculateSpanEfficiency(C_L_empty, dihedral, AR, b, R, N, e0_empty)
+    e_pay = calculateSpanEfficiency(C_L_pay, dihedral, AR, b, R, N, e0_pay)
+    print "e_empty:", e_empty, "e_pay:", e_pay
+    # e_empty = e0_empty * 0.99014 # right now just doing some rough scaling
+    # e_pay = e0_pay * 0.97711
+
+    # PROFILE DRAG COEFFICIENT STUFF 
+    c_d_0 = 0.020
+    c_d_1 = -0.004
+    c_d_2 = 0.020
+    c_d_8 = 1.0
+    c_l_0 = 0.8
+
+    Re = calculateReynolds(rho, 5.09, C)
+
+    c_d_empty = calculateProfileDragCoeffImproved(C_L_empty, Re, tau)
+    c_d_pay = calculateProfileDragCoeffImproved(C_L_pay, Re, tau)
+
+    C_D_empty = calculateCoeffDrag(CDA0, S_ref, c_d_empty, C_L_empty, AR, e_empty)
+    C_D_pay = calculateCoeffDrag(CDA0, S_ref, c_d_pay, C_L_pay, AR, e_pay)
+
+    print "C_D_empty:", C_D_empty, "C_D_pay:", C_D_pay
+
+    ### LOADED ###
+
+    # velocity required to lift Wloaded in steady level flight
+    V_req_loaded = ((2*Wloaded / (rho * C_L_pay * S_ref)))**0.5
+    print "Velocity Required to Lift Wloaded:", V_req_loaded
+
+    # figure out Tmax at that required velocity
+    Tmax = 1.0 - 0.08 * V_req_loaded - 0.0028 * (V_req_loaded ** 2)
+
+    # from Tmax, figure out how fast we can actually go (when Thrust = Drag)
+    V_max = ((2 * Tmax) / (rho * C_D_pay * S_ref))**0.5
+
+    print "Max. Velocity Given Tmax:", V_max
+    print V_max > V_req_loaded
+
+    # figure out the bending of the wings in loaded case (empty will have less, so this is what matters)
+    db_ratio = calculateDeltaBRatio(Wfuse, Wpay, E_foam, tau, epsilon, lamda, AR, S_ref, N=1.02)
+    print "Delta/B Ratio:", db_ratio
+
+    ### EMPTY ###
+
+    # figure out the velocity needed to lift empty plane
+    V_req_empty = ((2*Wempty / (rho * C_L_empty * S_ref)))**0.5
+    print "Velocity Required to Lift Wempty:", V_req_empty
+
+    # from Tmax, figure out how fast we can actually go (when Thrust = Drag)
+    V_max = ((2 * Tmax) / (rho * C_D_empty * S_ref))**0.5
+
 def main():
     #optimizeObjective()
     #calculatePlaneWeightEmpty()
-    doAllCalculations()
+    #doAllCalculations()
+    fuckThis()
 
 if __name__ == '__main__':
     main()
