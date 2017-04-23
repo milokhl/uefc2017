@@ -17,9 +17,17 @@ def doAllCalculations():
     PI = 3.14159
     G = 9.81 # m/s^2
     RHO_AIR = 1.225
-    e = 0.91 # efficiency
+    e = 0.96 # efficiency
+
+    e_0_empty = 0.9669 # 
+    e_0_pay = 0.9899 # 
+
+
+
     B_PV = 0.76 * 2 # m
-    S_PV = 0.39 # m^2
+    S_PV = 0.228 # m^2
+    # B_PV = 0.76 * 2 # m
+    # S_PV = 0.39 # m^2
 
     CDA0 = 0.004 # m^2
     T_MAX = 0.7 # N
@@ -30,8 +38,6 @@ def doAllCalculations():
     c_d_2 = 0.020
     c_d_8 = 1.0
     c_l_0 = 0.8
-
-    WEIGHT_FUSE = 2.7 # N
 
     ### END PARAMS ###
     MATERIALS = {'dow_blue': (25.5, 12.0e6)}
@@ -73,7 +79,7 @@ def doAllCalculations():
     print "C_L_PAY:", C_L_PAY
     print "C_L_EMPTY:", C_L_EMPTY
 
-    TAPER_RATIO = 0.3
+    TAPER_RATIO = 0.5
 
     RHO_FOAM = MATERIALS[material][0]
     E_FOAM = MATERIALS[material][1]
@@ -91,6 +97,7 @@ def doAllCalculations():
     print "Wing Weight (N):", WING_WEIGHT
 
     # calculate the weight of the fuselage
+    print "B:", B, "B_PV:", B_PV, "S_REF:", S_REF, "S_PV:", S_PV
     WEIGHT_FUSE = (0.145 + (0.060 * B / B_PV) + (0.045 * (S_REF / S_PV))) * G
     print "Weight fuse (N):", WEIGHT_FUSE
 
